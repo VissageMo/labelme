@@ -2,6 +2,7 @@ import base64
 import json
 import os.path
 import sys
+from labelme.widgets.canvas import Canvas
 
 
 PY2 = sys.version_info[0] == 2
@@ -63,6 +64,7 @@ class LabelFile(object):
         self.flags = flags
         self.shapes = shapes
         self.imagePath = imagePath
+        # Canvas.imagePath = imagePath
         self.imageData = imageData
         self.lineColor = lineColor
         self.fillColor = fillColor

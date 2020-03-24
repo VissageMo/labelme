@@ -2,10 +2,18 @@ from qtpy import QtCore
 from qtpy import QtGui
 from qtpy import QtWidgets
 
+import skimage.io as io
+import numpy as np
+import json
+import sys
+
 from labelme import QT5
 from labelme.shape import Shape
 import labelme.utils
 
+sys.path.append('/devdata/Label2/deeplab-pytorch')
+import demo
+import cv2
 
 # TODO(unknown):
 # - [maybe] Find optimal epsilon value.
@@ -23,6 +31,7 @@ class Canvas(QtWidgets.QWidget):
     zoomRequest = QtCore.Signal(int, QtCore.QPoint)
     scrollRequest = QtCore.Signal(int, int)
     newShape = QtCore.Signal()
+    newautoShape = QtCore.Signal()
     selectionChanged = QtCore.Signal(bool)
     shapeMoved = QtCore.Signal()
     drawingPolygon = QtCore.Signal(bool)
@@ -38,9 +47,15 @@ class Canvas(QtWidgets.QWidget):
     def __init__(self, *args, **kwargs):
         self.epsilon = kwargs.pop('epsilon', 11.0)
         super(Canvas, self).__init__(*args, **kwargs)
+        # *args allows to input unknown numbers of args ; **args stores undefined parameters like dd=18
         # Initialise local state.
         self.mode = self.EDIT
         self.shapes = []
+        self.filename = []
+        self.image = []
+        self.pre_mask = []
+        self.roi = []
+        self.test_mask = []
         self.shapesBackups = []
         self.current = None
         self.selectedShape = None  # save the selected shape here
@@ -84,7 +99,7 @@ class Canvas(QtWidgets.QWidget):
 
     @createMode.setter
     def createMode(self, value):
-        if value not in ['polygon', 'rectangle', 'line', 'point']:
+        if value not in ['polygon', 'rectangle', 'line', 'point', 'auto']:
             raise ValueError('Unsupported createMode: %s' % value)
         self._createMode = value
 
@@ -185,6 +200,11 @@ class Canvas(QtWidgets.QWidget):
                 self.line.close()
             elif self.createMode == 'point':
                 self.line.points = [self.current[0]]
+                self.line.close()
+            elif self.createMode == 'auto':
+                self.line.points = list(self.getRectangleFromLine(
+                    (self.current[0], pos)
+                ))
                 self.line.close()
             self.line.line_color = color
             self.repaint()
@@ -296,6 +316,34 @@ class Canvas(QtWidgets.QWidget):
                         assert len(self.current.points) == 1
                         self.current.points = self.line.points
                         self.finalise()
+                    elif self.createMode == 'auto':
+                        assert len(self.current.points) == 1
+                        self.current.points = self.line.points
+                        roi = self.line.auto_segment()
+                        img = io.imread(self.filename)
+                        row = np.arange(roi[1], roi[3])
+                        col = np.arange(roi[0], roi[2])
+                        roi_image = img[row]
+                        roi_image = roi_image[:, col]
+                        io.imsave('/devdata/Label2/labelme/output.png', roi_image)
+                        # demo.main()
+                        det = demo.test()
+
+                        j_det = 0
+                        for i in row:
+                            self.pre_mask[i, col] = det[j_det, :]
+                            j_det += 1
+                        np.save('/devdata/Label2/labelme/mask.npy', self.pre_mask)
+
+                        assert self.current
+                        self.current.close()
+                        self.shapes.append(self.current)
+                        self.storeShapes()
+                        self.current = None
+                        self.setHiding(False)
+                        self.newautoShape.emit()
+                        self.update()
+
                 elif not self.outOfPixmap(pos):
                     # Create new shape.
                     self.current = Shape()
@@ -493,6 +541,8 @@ class Canvas(QtWidgets.QWidget):
             self.line.paint(p)
         if self.selectedShapeCopy:
             self.selectedShapeCopy.paint(p)
+
+        if self.createMode == 'auto' and
 
         if (self.fillDrawing() and self.createMode == 'polygon' and
                 self.current is not None and len(self.current.points) >= 2):

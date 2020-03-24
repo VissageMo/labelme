@@ -1,8 +1,11 @@
 import copy
-
+import json
 from qtpy import QtGui
 
 import labelme.utils
+
+import skimage.io as io
+import numpy as np
 
 
 # TODO(unknown):
@@ -37,6 +40,7 @@ class Shape(object):
     def __init__(self, label=None, line_color=None):
         self.label = label
         self.points = []
+        self.imagePath = None
         self.fill = False
         self.selected = False
 
@@ -183,6 +187,20 @@ class Shape(object):
         shape.line_color = copy.deepcopy(self.line_color)
         shape.fill_color = copy.deepcopy(self.fill_color)
         return shape
+
+    def auto_segment(self):
+        point0 = self.points[0]
+        point1 = self.points[2]
+        roi = [point0.x(), point0.y(), point1.x(), point1.y()]
+        json.dump(roi, open('../output.json', 'w'), indent=2)
+        # if self.imagePath:
+        #     img = io.imread(self.imagePath)
+        #     row = np.arange(roi[0], roi[2])
+        #     col = np.arange(roi[1], roi[3])
+        #     roi_image = img[row]
+        #     roi_image = roi_image[:, col]
+        #     io.imsave('../output.jpg', roi_image)
+        return roi
 
     def __len__(self):
         return len(self.points)

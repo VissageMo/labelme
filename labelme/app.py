@@ -31,6 +31,8 @@ from labelme.widgets import LabelQListWidget
 from labelme.widgets import ToolBar
 from labelme.widgets import ZoomWidget
 
+import numpy as np
+
 
 # FIXME
 # - [medium] Set max zoom value to something big enough for FitWidth/Window
@@ -75,7 +77,6 @@ class MainWindow(QtWidgets.QMainWindow, WindowMixin):
 
         # Whether we need to save or not.
         self.dirty = False
-
         self._noSelectionSlot = False
 
         # Main widgets and related state.
@@ -158,6 +159,7 @@ class MainWindow(QtWidgets.QMainWindow, WindowMixin):
         self.canvas.scrollRequest.connect(self.scrollRequest)
 
         self.canvas.newShape.connect(self.newShape)
+        self.canvas.newautoShape.connect(self.newautoShape)
         self.canvas.shapeMoved.connect(self.setDirty)
         self.canvas.selectionChanged.connect(self.shapeSelectionChanged)
         self.canvas.drawingPolygon.connect(self.toggleDrawingSensitive)
@@ -228,6 +230,14 @@ class MainWindow(QtWidgets.QMainWindow, WindowMixin):
             'objects',
             'Start drawing points',
             enabled=True,
+        )
+        autoMode = action(
+            'Auto Select',
+            lambda: self.toggleDrawMode(False, createMode='auto'),
+            shortcuts['auto_select'],
+            'objects',
+            'Start drawing rectangle',
+            enabled=True
         )
         editMode = action('Edit Polygons', self.setEditMode,
                           shortcuts['edit_polygon'], 'edit',
@@ -338,6 +348,7 @@ class MainWindow(QtWidgets.QMainWindow, WindowMixin):
             createRectangleMode=createRectangleMode,
             createLineMode=createLineMode,
             createPointMode=createPointMode,
+            autoMode=autoMode,
             shapeLineColor=shapeLineColor, shapeFillColor=shapeFillColor,
             zoom=zoom, zoomIn=zoomIn, zoomOut=zoomOut, zoomOrg=zoomOrg,
             fitWindow=fitWindow, fitWidth=fitWidth,
@@ -352,6 +363,7 @@ class MainWindow(QtWidgets.QMainWindow, WindowMixin):
                 createRectangleMode,
                 createLineMode,
                 createPointMode,
+                autoMode,
                 editMode,
                 edit,
                 copy,
@@ -427,6 +439,7 @@ class MainWindow(QtWidgets.QMainWindow, WindowMixin):
             None,
             createMode,
             editMode,
+            autoMode,
             copy,
             delete,
             undo,
@@ -521,6 +534,7 @@ class MainWindow(QtWidgets.QMainWindow, WindowMixin):
             self.actions.createLineMode,
             self.actions.createPointMode,
             self.actions.editMode,
+            self.actions.autoMode
         )
         addActions(self.menus.edit, actions + self.actions.editMenu)
 
@@ -544,6 +558,7 @@ class MainWindow(QtWidgets.QMainWindow, WindowMixin):
         self.actions.createRectangleMode.setEnabled(True)
         self.actions.createLineMode.setEnabled(True)
         self.actions.createPointMode.setEnabled(True)
+        self.actions.autoMode.setEnabled(True)
         title = __appname__
         if self.filename is not None:
             title = '{} - {}'.format(title, self.filename)
@@ -616,27 +631,38 @@ class MainWindow(QtWidgets.QMainWindow, WindowMixin):
             self.actions.createRectangleMode.setEnabled(True)
             self.actions.createLineMode.setEnabled(True)
             self.actions.createPointMode.setEnabled(True)
+            self.actions.autoMode.setEnabled(True)
         else:
             if createMode == 'polygon':
                 self.actions.createMode.setEnabled(False)
                 self.actions.createRectangleMode.setEnabled(True)
                 self.actions.createLineMode.setEnabled(True)
                 self.actions.createPointMode.setEnabled(True)
+                self.actions.autoMode.setEnabled(True)
             elif createMode == 'rectangle':
                 self.actions.createMode.setEnabled(True)
                 self.actions.createRectangleMode.setEnabled(False)
                 self.actions.createLineMode.setEnabled(True)
                 self.actions.createPointMode.setEnabled(True)
+                self.actions.autoMode.setEnabled(True)
             elif createMode == 'line':
                 self.actions.createMode.setEnabled(True)
                 self.actions.createRectangleMode.setEnabled(True)
                 self.actions.createLineMode.setEnabled(False)
                 self.actions.createPointMode.setEnabled(True)
+                self.actions.autoMode.setEnabled(True)
             elif createMode == 'point':
                 self.actions.createMode.setEnabled(True)
                 self.actions.createRectangleMode.setEnabled(True)
                 self.actions.createLineMode.setEnabled(True)
                 self.actions.createPointMode.setEnabled(False)
+                self.actions.autoMode.setEnabled(True)
+            elif createMode == 'auto':
+                self.actions.createMode.setEnabled(True)
+                self.actions.createRectangleMode.setEnabled(True)
+                self.actions.createLineMode.setEnabled(True)
+                self.actions.createPointMode.setEnabled(True)
+                self.actions.autoMode.setEnabled(False)
             else:
                 raise ValueError('Unsupported createMode: %s' % createMode)
         self.actions.editMode.setEnabled(not edit)
@@ -875,6 +901,27 @@ class MainWindow(QtWidgets.QMainWindow, WindowMixin):
             self.actions.undo.setEnabled(True)
             self.setDirty()
 
+    def newautoShape(self):
+        items = self.uniqLabelList.selectedItems()
+        text = None
+        if items:
+            text = items[0].text()
+        text = self.labelDialog.popUp(text)
+        if text is not None and not self.validateLabel(text):
+            self.errorMessage('Invalid label',
+                              "Invalid label '{}' with validation type '{}'"
+                              .format(text, self._config['validate_label']))
+            text = None
+        if text is None:
+            self.canvas.undoLastLine()
+            self.canvas.shapesBackups.pop()
+        else:
+            self.addLabel(self.canvas.setLastLabel(text))
+            self.actions.editMode.setEnabled(True)
+            self.actions.undoLastPoint.setEnabled(False)
+            self.actions.undo.setEnabled(True)
+            self.setDirty()
+
     def scrollRequest(self, delta, orientation):
         units = - delta * 0.1  # natural scroll
         bar = self.scrollBars[orientation]
@@ -991,6 +1038,8 @@ class MainWindow(QtWidgets.QMainWindow, WindowMixin):
             self.status("Error reading %s" % filename)
             return False
         self.image = image
+        self.canvas.pre_mask = np.zeros([int(image.height()), int(image.width())])
+        self.canvas.filename = filename.split('.')[0] + '.png'
         self.filename = filename
         if self._config['keep_prev']:
             prev_shapes = self.canvas.shapes

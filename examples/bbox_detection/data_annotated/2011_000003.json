@@ -1,65 +1,65 @@
 {
-  "flags": {},
   "shapes": [
     {
-      "label": "person",
-      "line_color": null,
-      "fill_color": null,
+      "line_color": null, 
       "points": [
         [
-          188,
-          108
-        ],
-        [
-          313,
+          189, 
           107
-        ],
+        ], 
         [
-          313,
+          316, 
+          107
+        ], 
+        [
+          313, 
           329
-        ],
+        ], 
         [
-          191,
+          191, 
           329
         ]
-      ]
-    },
+      ], 
+      "fill_color": null, 
+      "label": "person"
+    }, 
     {
-      "label": "person",
-      "line_color": null,
-      "fill_color": null,
+      "line_color": null, 
       "points": [
         [
-          499,
-          85
-        ],
+          500, 
+          78
+        ], 
         [
-          365,
-          85
-        ],
+          365, 
+          78
+        ], 
         [
-          365,
-          335
-        ],
+          366, 
+          328
+        ], 
         [
-          499,
-          335
+          500, 
+          328
         ]
-      ]
+      ], 
+      "fill_color": null, 
+      "label": "person"
     }
-  ],
+  ], 
   "lineColor": [
-    0,
-    255,
-    0,
+    0, 
+    255, 
+    0, 
     128
-  ],
+  ], 
+  "imagePath": "2011_000003.jpg", 
+  "flags": {}, 
   "fillColor": [
-    255,
-    0,
-    0,
+    255, 
+    0, 
+    0, 
     128
-  ],
-  "imagePath": "2011_000003.jpg",
+  ], 
   "imageData": null
 }
